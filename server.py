@@ -10,8 +10,7 @@ import urllib.request
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
-SHEET_URL = "https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/export?format=csv&gid=0"
-ANTHROPIC_URL = "https://api.anthropic.com/v1/messages"
+SHEET_URL = "https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/gviz/tq?tqx=out:csv&sheet=Sheet1"ANTHROPIC_URL = "https://api.anthropic.com/v1/messages"
 PORT = int(os.environ.get("PORT", 8000))
 
 
