@@ -79,7 +79,7 @@
   function ask(q) { input.value = q; send(); }
   async function send() {
     const q = input.value.trim(); if (!q) return;
-    if (ENDPOINT.includes("dataingestionagents")) {
+    if (ENDPOINT.includes("dataingestionagent")) {
       addMsg('agent', 'Endpoint not set yet. Update the ENDPOINT line in index.html with your Render URL.', 'error');
       return;
     }
