@@ -41,7 +41,7 @@
 <body>
 <header>
   <h1><span>◈</span> STUDENT AGENT</h1>
-  <div class="subtitle">powered by Render + Claude</div>
+  <div class="subtitle">powered by AWS + Claude</div>
 </header>
 <div class="chat-area" id="chat">
   <div class="msg agent">
@@ -64,7 +64,8 @@
   <button class="send-btn" id="btn" onclick="send()">SEND →</button>
 </div>
 <script>
-  const ENDPOINT = "https://YOUR-APP-NAME.onrender.com/ask";
+  // !! REPLACE THIS with your API endpoint from deploy.py output !!
+  const ENDPOINT = "https://YOUR_API_ID.execute-api.us-east-1.amazonaws.com/ask";
 
   const chat = document.getElementById('chat');
   const input = document.getElementById('q');
@@ -79,8 +80,8 @@
   function ask(q) { input.value = q; send(); }
   async function send() {
     const q = input.value.trim(); if (!q) return;
-    if (ENDPOINT.includes("YOUR-APP-NAME")) {
-      addMsg('agent', 'Endpoint not set yet. Update the ENDPOINT line in index.html with your Render URL.', 'error');
+    if (ENDPOINT.includes("YOUR_API_ID")) {
+      addMsg('agent', 'API endpoint not set. Open index.html and replace YOUR_API_ID with your real endpoint from deploy.py.', 'error');
       return;
     }
     input.value = ''; input.disabled = btn.disabled = true;
