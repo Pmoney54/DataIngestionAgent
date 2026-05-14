@@ -79,10 +79,6 @@
   function ask(q) { input.value = q; send(); }
   async function send() {
     const q = input.value.trim(); if (!q) return;
-    if (ENDPOINT.includes("dataingestionagent")) {
-      addMsg('agent', 'Endpoint not set yet. Update the ENDPOINT line in index.html with your Render URL.', 'error');
-      return;
-    }
     input.value = ''; input.disabled = btn.disabled = true;
     addMsg('user', q);
     const t = addMsg('agent', '<div class="thinking"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>');
