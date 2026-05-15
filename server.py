@@ -90,7 +90,7 @@ def fetch_students():
 def ask_claude(question, students):
     payload = json.dumps({
         "model": "claude-3-5-sonnet-20240620",
-        "max_tokens_to_sample": 1024,
+        "max_tokens": 1024,
         "system": (
             "You are a data analyst for a student database. "
             "Answer questions accurately using ONLY the provided data. "
