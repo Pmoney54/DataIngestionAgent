@@ -168,7 +168,8 @@ class Handler(BaseHTTPRequestHandler):
                 "student_count": len(students),
             })
         except Exception as e:
-            self.send_json(500, {"error": str(e)})
+            import traceback
+            self.send_json(500, {"error": str(e), "trace": traceback.format_exc()})
 
 
 if __name__ == "__main__":
