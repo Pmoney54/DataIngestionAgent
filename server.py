@@ -102,9 +102,9 @@ def fetch_students():
     return FALLBACK_STUDENTS
 
 
-def ask_claude(question, students):
+def ask_claude(question, students, api_key):
     payload = json.dumps({
-        "model": "claude-sonnet-4-6",
+        "model": "claude-haiku-4-5-20251001",
         "max_tokens": 1024,
         "system": (
             "You are a data analyst for a student database. "
@@ -120,7 +120,7 @@ def ask_claude(question, students):
         ANTHROPIC_URL, data=payload,
         headers={
             "Content-Type":      "application/json",
-            "x-api-key":         ANTHROPIC_API_KEY,
+            "x-api-key":         api_key,
             "anthropic-version": "2023-06-01",
         },
         method="POST",
@@ -210,7 +210,7 @@ class Handler(BaseHTTPRequestHandler):
 
         try:
             students = fetch_students()
-            answer   = ask_claude(question, students)
+            answer   = ask_claude(question, students, api_key)
             self.send_json(200, {
                 "question":      question,
                 "answer":        answer,
