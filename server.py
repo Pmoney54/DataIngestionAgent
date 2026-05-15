@@ -125,8 +125,13 @@ def ask_claude(question, students, api_key):
         },
         method="POST",
     )
-    with urllib.request.urlopen(req, timeout=25) as r:
-        result = json.loads(r.read())
+    try:
+        with urllib.request.urlopen(req, timeout=25) as r:
+            result = json.loads(r.read())
+    except urllib.error.HTTPError as e:
+        error_body = e.read().decode("utf-8", errors="replace")
+        print(f"Anthropic API {e.code} error: {error_body}")
+        raise RuntimeError(f"Anthropic API error {e.code}: {error_body}") from e
 
     # Fix #6: removed dead "completion" branch (old completions API, never returned by Messages API)
     if "content" in result and isinstance(result["content"], list) and result["content"]:
