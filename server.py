@@ -6,12 +6,15 @@ import os
 import csv
 import json
 import io
+import time
 import urllib.request
 from http.server import HTTPServer, BaseHTTPRequestHandler
+from socketserver import ThreadingMixIn
 
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
-ANTHROPIC_URL = "https://api.anthropic.com/v1/messages"
-PORT = int(os.environ.get("PORT", 8000))
+ANTHROPIC_URL     = "https://api.anthropic.com/v1/messages"
+PORT              = int(os.environ.get("PORT", 8000))
+MAX_QUESTION_LEN  = 1000
 
 SHEET_ID = "1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms"
 
@@ -49,9 +52,19 @@ FALLBACK_STUDENTS = [
     {"student_name": "Will",      "gender": "Male",   "class_level": "4. Senior",    "home_state": "FL", "major": "Math",    "extracurricular": "Debate"},
 ]
 
+# Fix #1: cache student data so Google Sheets is not hit on every request
+_students_cache     = None
+_cache_timestamp    = 0.0
+_CACHE_TTL          = 300  # seconds
+
 
 def fetch_students():
-    """Try multiple Google Sheets URL formats, fall back to hardcoded data."""
+    global _students_cache, _cache_timestamp
+
+    now = time.time()
+    if _students_cache is not None and (now - _cache_timestamp) < _CACHE_TTL:
+        return _students_cache
+
     urls = [
         f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Sheet1",
         f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&gid=0",
@@ -78,12 +91,14 @@ def fetch_students():
                 })
             if students:
                 print(f"Fetched {len(students)} students from: {url}")
+                _students_cache  = students
+                _cache_timestamp = now
                 return students
         except Exception as e:
             print(f"Failed to fetch from {url}: {e}")
-            continue
 
     print("All Google Sheet URLs failed — using fallback hardcoded data.")
+    # Don't cache the fallback so the next request retries Sheets
     return FALLBACK_STUDENTS
 
 
@@ -104,8 +119,8 @@ def ask_claude(question, students):
     req = urllib.request.Request(
         ANTHROPIC_URL, data=payload,
         headers={
-            "Content-Type": "application/json",
-            "x-api-key": ANTHROPIC_API_KEY,
+            "Content-Type":      "application/json",
+            "x-api-key":         ANTHROPIC_API_KEY,
             "anthropic-version": "2023-06-01",
         },
         method="POST",
@@ -113,11 +128,15 @@ def ask_claude(question, students):
     with urllib.request.urlopen(req, timeout=25) as r:
         result = json.loads(r.read())
 
-    if "completion" in result:
-        return result["completion"]
+    # Fix #6: removed dead "completion" branch (old completions API, never returned by Messages API)
     if "content" in result and isinstance(result["content"], list) and result["content"]:
         return result["content"][0].get("text", "")
     return json.dumps(result)
+
+
+# Fix #2: threaded server so concurrent requests don't block each other
+class ThreadingHTTPServer(ThreadingMixIn, HTTPServer):
+    daemon_threads = True
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -141,6 +160,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Methods", "POST, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.send_header("Content-Length", "0")  # Fix #7
         self.end_headers()
 
     def do_GET(self):
@@ -153,19 +173,42 @@ class Handler(BaseHTTPRequestHandler):
         if self.path != "/ask":
             self.send_json(404, {"error": "Not found"})
             return
+
+        # Fix #8: re-read key at request time so it reflects the current env
+        api_key = os.environ.get("ANTHROPIC_API_KEY", "")
+        if not api_key:
+            self.send_json(500, {"error": "ANTHROPIC_API_KEY not set on server."})
+            return
+
+        # Fix #3: handle missing/empty body as 400, not 500
+        length = int(self.headers.get("Content-Length", 0))
+        if length == 0:
+            self.send_json(400, {"error": "Request body is required."})
+            return
+
         try:
-            length   = int(self.headers.get("Content-Length", 0))
-            body     = json.loads(self.rfile.read(length))
-            question = body.get("question", "").strip()
+            raw = self.rfile.read(length)
+        except Exception:
+            self.send_json(400, {"error": "Failed to read request body."})
+            return
 
-            if not question:
-                self.send_json(400, {"error": "Missing 'question' field."})
-                return
+        try:
+            body = json.loads(raw)
+        except json.JSONDecodeError:
+            self.send_json(400, {"error": "Invalid JSON body."})
+            return
 
-            if not ANTHROPIC_API_KEY:
-                self.send_json(500, {"error": "ANTHROPIC_API_KEY not set on server."})
-                return
+        question = body.get("question", "").strip()
+        if not question:
+            self.send_json(400, {"error": "Missing 'question' field."})
+            return
 
+        # Fix #5: reject oversized questions
+        if len(question) > MAX_QUESTION_LEN:
+            self.send_json(400, {"error": f"Question must be {MAX_QUESTION_LEN} characters or fewer."})
+            return
+
+        try:
             students = fetch_students()
             answer   = ask_claude(question, students)
             self.send_json(200, {
@@ -175,9 +218,10 @@ class Handler(BaseHTTPRequestHandler):
             })
         except Exception as e:
             import traceback
-            self.send_json(500, {"error": str(e), "trace": traceback.format_exc()})
+            traceback.print_exc()  # Fix #4: log internally, don't send trace to client
+            self.send_json(500, {"error": "An internal server error occurred."})
 
 
 if __name__ == "__main__":
     print(f"Starting server on port {PORT}...")
-    HTTPServer(("0.0.0.0", PORT), Handler).serve_forever()
+    ThreadingHTTPServer(("0.0.0.0", PORT), Handler).serve_forever()
