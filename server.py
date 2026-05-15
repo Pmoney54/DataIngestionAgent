@@ -89,8 +89,8 @@ def fetch_students():
 
 def ask_claude(question, students):
     payload = json.dumps({
-        "model": "claude-sonnet-4-20250514",
-        "max_tokens": 1024,
+        "model": "claude-3-5-sonnet-20240620",
+        "max_tokens_to_sample": 1024,
         "system": (
             "You are a data analyst for a student database. "
             "Answer questions accurately using ONLY the provided data. "
@@ -111,7 +111,13 @@ def ask_claude(question, students):
         method="POST",
     )
     with urllib.request.urlopen(req, timeout=25) as r:
-        return json.loads(r.read())["content"][0]["text"]
+        result = json.loads(r.read())
+
+    if "completion" in result:
+        return result["completion"]
+    if "content" in result and isinstance(result["content"], list) and result["content"]:
+        return result["content"][0].get("text", "")
+    return json.dumps(result)
 
 
 class Handler(BaseHTTPRequestHandler):
