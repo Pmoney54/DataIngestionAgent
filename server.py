@@ -10,30 +10,81 @@ import urllib.request
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
-SHEET_URL = "https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/export?format=csv&gid=0"
 ANTHROPIC_URL = "https://api.anthropic.com/v1/messages"
-PORT = int(os.environ.get("PORT", 8000))    
+PORT = int(os.environ.get("PORT", 8000))
+
+SHEET_ID = "1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms"
+
+# Fallback hardcoded data in case Google Sheets fetch fails
+FALLBACK_STUDENTS = [
+    {"student_name": "Alexandra", "gender": "Female", "class_level": "4. Senior",    "home_state": "CA", "major": "English", "extracurricular": "Drama Club"},
+    {"student_name": "Andrew",    "gender": "Male",   "class_level": "1. Freshman",  "home_state": "SD", "major": "Math",    "extracurricular": "Lacrosse"},
+    {"student_name": "Anna",      "gender": "Female", "class_level": "1. Freshman",  "home_state": "NC", "major": "English", "extracurricular": "Basketball"},
+    {"student_name": "Becky",     "gender": "Female", "class_level": "2. Sophomore", "home_state": "SD", "major": "Art",     "extracurricular": "Baseball"},
+    {"student_name": "Benjamin",  "gender": "Male",   "class_level": "4. Senior",    "home_state": "WI", "major": "English", "extracurricular": "Basketball"},
+    {"student_name": "Carl",      "gender": "Male",   "class_level": "3. Junior",    "home_state": "MD", "major": "Art",     "extracurricular": "Debate"},
+    {"student_name": "Carrie",    "gender": "Female", "class_level": "3. Junior",    "home_state": "NE", "major": "English", "extracurricular": "Track & Field"},
+    {"student_name": "Dorothy",   "gender": "Female", "class_level": "4. Senior",    "home_state": "MD", "major": "Math",    "extracurricular": "Lacrosse"},
+    {"student_name": "Dylan",     "gender": "Male",   "class_level": "1. Freshman",  "home_state": "MA", "major": "Math",    "extracurricular": "Baseball"},
+    {"student_name": "Edward",    "gender": "Male",   "class_level": "3. Junior",    "home_state": "FL", "major": "English", "extracurricular": "Drama Club"},
+    {"student_name": "Ellen",     "gender": "Female", "class_level": "1. Freshman",  "home_state": "WI", "major": "Physics", "extracurricular": "Drama Club"},
+    {"student_name": "Fiona",     "gender": "Female", "class_level": "1. Freshman",  "home_state": "MA", "major": "Art",     "extracurricular": "Debate"},
+    {"student_name": "John",      "gender": "Male",   "class_level": "3. Junior",    "home_state": "CA", "major": "Physics", "extracurricular": "Basketball"},
+    {"student_name": "Jonathan",  "gender": "Male",   "class_level": "2. Sophomore", "home_state": "SC", "major": "Math",    "extracurricular": "Debate"},
+    {"student_name": "Joseph",    "gender": "Male",   "class_level": "1. Freshman",  "home_state": "AK", "major": "English", "extracurricular": "Drama Club"},
+    {"student_name": "Josephine", "gender": "Female", "class_level": "1. Freshman",  "home_state": "NY", "major": "Math",    "extracurricular": "Debate"},
+    {"student_name": "Karen",     "gender": "Female", "class_level": "2. Sophomore", "home_state": "NH", "major": "English", "extracurricular": "Basketball"},
+    {"student_name": "Kevin",     "gender": "Male",   "class_level": "2. Sophomore", "home_state": "NE", "major": "Physics", "extracurricular": "Drama Club"},
+    {"student_name": "Lisa",      "gender": "Female", "class_level": "3. Junior",    "home_state": "SC", "major": "Art",     "extracurricular": "Lacrosse"},
+    {"student_name": "Mary",      "gender": "Female", "class_level": "2. Sophomore", "home_state": "AK", "major": "Physics", "extracurricular": "Track & Field"},
+    {"student_name": "Maureen",   "gender": "Female", "class_level": "1. Freshman",  "home_state": "CA", "major": "Physics", "extracurricular": "Basketball"},
+    {"student_name": "Nick",      "gender": "Male",   "class_level": "4. Senior",    "home_state": "NY", "major": "Art",     "extracurricular": "Baseball"},
+    {"student_name": "Olivia",    "gender": "Female", "class_level": "4. Senior",    "home_state": "NC", "major": "Physics", "extracurricular": "Track & Field"},
+    {"student_name": "Pamela",    "gender": "Female", "class_level": "3. Junior",    "home_state": "RI", "major": "Math",    "extracurricular": "Baseball"},
+    {"student_name": "Patrick",   "gender": "Male",   "class_level": "1. Freshman",  "home_state": "NY", "major": "Art",     "extracurricular": "Lacrosse"},
+    {"student_name": "Robert",    "gender": "Male",   "class_level": "1. Freshman",  "home_state": "CA", "major": "English", "extracurricular": "Track & Field"},
+    {"student_name": "Sean",      "gender": "Male",   "class_level": "1. Freshman",  "home_state": "NH", "major": "Physics", "extracurricular": "Track & Field"},
+    {"student_name": "Stacy",     "gender": "Female", "class_level": "1. Freshman",  "home_state": "NY", "major": "Math",    "extracurricular": "Baseball"},
+    {"student_name": "Thomas",    "gender": "Male",   "class_level": "2. Sophomore", "home_state": "RI", "major": "Art",     "extracurricular": "Lacrosse"},
+    {"student_name": "Will",      "gender": "Male",   "class_level": "4. Senior",    "home_state": "FL", "major": "Math",    "extracurricular": "Debate"},
+]
 
 
 def fetch_students():
-    req = urllib.request.Request(SHEET_URL, headers={"User-Agent": "Mozilla/5.0"})
-    with urllib.request.urlopen(req, timeout=15) as r:
-        content = r.read().decode("utf-8")
-    rows = list(csv.DictReader(io.StringIO(content)))
-    students = []
-    for row in rows:
-        name = row.get("Student Name", "").strip()
-        if not name:
+    """Try multiple Google Sheets URL formats, fall back to hardcoded data."""
+    urls = [
+        f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Sheet1",
+        f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&gid=0",
+        f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/pub?output=csv",
+    ]
+    for url in urls:
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+            with urllib.request.urlopen(req, timeout=15) as r:
+                content = r.read().decode("utf-8")
+            rows = list(csv.DictReader(io.StringIO(content)))
+            students = []
+            for row in rows:
+                name = row.get("Student Name", "").strip()
+                if not name:
+                    continue
+                students.append({
+                    "student_name":    name,
+                    "gender":          row.get("Gender", "").strip(),
+                    "class_level":     row.get("Class Level", "").strip(),
+                    "home_state":      row.get("Home State", "").strip(),
+                    "major":           row.get("Major", "").strip(),
+                    "extracurricular": row.get("Extracurricular Activity", "").strip(),
+                })
+            if students:
+                print(f"Fetched {len(students)} students from: {url}")
+                return students
+        except Exception as e:
+            print(f"Failed to fetch from {url}: {e}")
             continue
-        students.append({
-            "student_name":    name,
-            "gender":          row.get("Gender", "").strip(),
-            "class_level":     row.get("Class Level", "").strip(),
-            "home_state":      row.get("Home State", "").strip(),
-            "major":           row.get("Major", "").strip(),
-            "extracurricular": row.get("Extracurricular Activity", "").strip(),
-        })
-    return students
+
+    print("All Google Sheet URLs failed — using fallback hardcoded data.")
+    return FALLBACK_STUDENTS
 
 
 def ask_claude(question, students):
